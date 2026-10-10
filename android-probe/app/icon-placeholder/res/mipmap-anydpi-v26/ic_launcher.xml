@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder icon for builds without the character's own icon (chat/icon/res, not in the repository). -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_placeholder_bg" />
+    <foreground android:drawable="@drawable/ic_launcher_placeholder_fg" />
+</adaptive-icon>

@@ -1,0 +1,73 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'local.fereko.probe'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'local.fereko.probe'
+        minSdk 31
+        targetSdk 36
+        versionCode 51
+        versionName '0.18.4'
+        ndk { abiFilters 'arm64-v8a' }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            // Personal test build only: signed with the local debug key so it can be sideloaded,
+            // debuggable so adb `run-as` can place model packs straight into app storage.
+            signingConfig signingConfigs.debug
+            debuggable true
+        }
+    }
+
+    // QNN's DSP skeleton libraries must exist as real files on disk for the DSP loader.
+    packaging {
+        jniLibs { useLegacyPackaging true }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+// The character's own files live in fereko-voice/chat, which is not in the repository (persona,
+// voice caption, pictures, icon; the chat history next to them must never end up in the APK).
+// Without them the build uses the samples in chat-example and a placeholder icon.
+def chatDir = file('../../chat')
+def exampleDir = file('../../chat-example')
+def chatAssets = layout.buildDirectory.dir("generated/chatAssets")
+def copyChatAssets = tasks.register('copyChatAssets', Sync) {
+    ['persona.md', 'voice.txt'].each { n -> from(new File(chatDir, n).isFile() ? chatDir : exampleDir) { include n } }
+    from(chatDir) { include 'fereko_stand_cut.webp', 'bg_room.webp', 'bg_outside.webp' }   // optional
+    // the 3D page and its libraries (three.js, three-vrm: MIT); the VRM itself is not in the APK
+    from('../../web') { into 'web' }
+    into chatAssets
+}
+android.sourceSets.main.assets.srcDir(chatAssets.get().asFile)
+def iconRes = layout.buildDirectory.dir("generated/iconRes")
+def copyIcon = tasks.register('copyIcon', Sync) {
+    def own = new File(chatDir, 'icon/res')
+    from(own.isDirectory() ? own : file('icon-placeholder/res'))
+    into iconRes
+}
+android.sourceSets.main.res.srcDir(iconRes.get().asFile)
+tasks.named('preBuild') { dependsOn copyChatAssets, copyIcon }
+
+dependencies {
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.30.0'
+    // QNN (Snapdragon NPU/GPU) as Qualcomm's plugin EP (MIT), built against QNN 2.50.
+    // The built-in QNN EP of onnxruntime-android-qnn 1.29 rejected the decoder (NHWC layout bug).
+    implementation 'com.qualcomm.qti:onnxruntime-android-qnn:2.6.0'
+    // QNN runtime libraries (Qualcomm AI Hub Model License: review before distributing).
+    implementation 'com.qualcomm.qti:qnn-runtime:2.50.0'
+    // LiteRT (TFLite) with the GPU delegate, for the decoder on the Adreno GPU (Google Maven).
+    implementation 'com.google.ai.edge.litert:litert:1.4.2'
+    implementation 'com.google.ai.edge.litert:litert-gpu:1.4.2'
+    implementation 'com.google.ai.edge.litert:litert-gpu-api:1.4.2'
+}

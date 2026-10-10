@@ -1,0 +1,9 @@
+# ローカル試験専用（wrangler dev -c wrangler.test.toml）。KV はローカルの模擬。
+name = "fereko-relay-test"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+[vars]
+DAILY_USD = "0.02"
+[[kv_namespaces]]
+binding = "USAGE"
+id = "local-test-usage"

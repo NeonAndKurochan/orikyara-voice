@@ -1,0 +1,17 @@
+LICENSES/Apache-2.0.txt 11359 -
+LICENSES/Descript-MIT.txt 1074 -
+LICENSES/MIT.txt 1064 -
+LICENSES/ModernBERT-MIT.txt 1070 -
+README.md 3300 -
+THIRD_PARTY_NOTICES.md 3777 -
+manifest.json 2791 -
+v4.1-small-mf/config.json 2228 -
+v4.1-small-mf/context_kv.onnx 220370315 e2a0851dab34612e1676a81316b6bc0de0ded6de27c78b8a740d6338c229adb3
+v4.1-small-mf/dacvae_decode.onnx 261400162 48f55372b800130ce3f56895501fcb154bac486a9ac805da1c39ccd06e2d1e48
+v4.1-small-mf/dacvae_encode.onnx 109454825 721c5c68b74e1aaff30f521d9099f6f852ce0c8188965a5fbba2ea0ab6fe5da0
+v4.1-small-mf/dit_step.onnx 1272620087 7861580d5306b1da480818f328e14ff437f2290485a87b2d1e55a79207637370
+v4.1-small-mf/duration.onnx 87172678 b807f0e9a3e86bce4fd4324db6da2ded1627f6af3ed155b918e249f2fde50809
+v4.1-small-mf/speaker_encoder.onnx 242880837 ecfa3a47f0a5bde19a4fcdca46d27fe51da97fbf68897476dca313017931945f
+v4.1-small-mf/text_encoder.onnx 1272933729 961efbf4b01e47114e75b62210f29db1568acf244308c7b8657c245061fc2f39
+v4.1-small-mf/tokenizer/tokenizer.json 6718495 -
+v4.1-small-mf/tokenizer/tokenizer_config.json 668 -

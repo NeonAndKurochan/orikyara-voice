@@ -1,0 +1,19 @@
+# 見本。wrangler.toml にコピーして、KV の ID を自分のものにする（wrangler.toml はリポジトリに入れない）
+name = "fereko-relay"
+main = "src/index.js"
+compatibility_date = "2026-09-01"
+# 公開 URL は https://fereko-relay.<アカウントのサブドメイン>.workers.dev
+workers_dev = true
+preview_urls = false
+
+[vars]
+DAILY_USD = "3"   # 1 日の使用額の上限（目安。Opus 5.5 の定価で計算）
+
+# 使用額の記録（KV 名前空間。wrangler kv namespace create fereko-relay-usage で作る）
+[[kv_namespaces]]
+binding = "USAGE"
+id = "<wrangler kv namespace create で作った ID>"
+
+# シークレット（ユーザーが自分で入れる。ここには書かない）:
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler secret put RELAY_TOKEN

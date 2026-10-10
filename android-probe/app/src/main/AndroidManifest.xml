@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No INTERNET, no RECORD_AUDIO: inference is fully on-device. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- The chat screen calls the relay (Cloudflare Worker). Speech synthesis stays on-device. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Voice input (SpeechRecognizer); on-device recognition is preferred. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+    <!-- onnxruntime-android's manifest adds this; not needed. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+    <application
+        android:label="ふぇれ子"
+        android:icon="@mipmap/ic_launcher"
+        android:largeHeap="true"
+        android:allowBackup="false"
+        android:theme="@android:style/Theme.DeviceDefault">
+        <!-- QNN HTP (NPU) talks to the DSP through the vendor FastRPC library. -->
+        <uses-native-library android:name="libcdsprpc.so" android:required="false" />
+        <!-- The test screen (model import, self-test, benchmarks): from the chat's settings. -->
+        <activity
+            android:name=".MainActivity"
+            android:label="ふぇれ子 試験"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize" />
+        <!-- Own process: a hung QNN call can be killed without taking the app down. -->
+        <activity
+            android:name=".NpuActivity"
+            android:exported="false"
+            android:process=":npu"
+            android:configChanges="orientation|screenSize|keyboardHidden" />
+        <!-- adb entry point for automated tests: only holders of DUMP (the adb shell) can start it. -->
+        <activity-alias
+            android:name=".NpuAuto"
+            android:targetActivity=".NpuActivity"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+        <activity
+            android:name=".ChatActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <!-- adb test entry for the chat screen (say a fixed line): DUMP = the adb shell only. -->
+        <activity-alias
+            android:name=".ChatAuto"
+            android:targetActivity=".ChatActivity"
+            android:exported="true"
+            android:permission="android.permission.DUMP" />
+    </application>
+</manifest>

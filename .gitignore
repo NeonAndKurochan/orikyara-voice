@@ -1,0 +1,37 @@
+# --- the character's own files (pictures, persona, voice, icon) and the conversation: private ---
+/chat/
+/art/
+/docs/
+# 3D models are the author's own (VRM meta: only the author, no redistribution)
+*.vrm
+*.vrma
+*.blend
+
+# --- downloaded / generated / large ---
+/models/
+/fereko-pack*/
+/out/
+/.venv*/
+/tools/lib/
+__pycache__/
+*.pyc
+
+# --- Android build ---
+/android-probe/build/
+/android-probe/app/build/
+/android-probe/.gradle/
+/android-probe/local.properties
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# --- relay (Cloudflare Worker): secrets and local state ---
+/relay/.dev.vars
+/relay/.wrangler/
+/relay/node_modules/
+
+# --- misc ---
+.DS_Store
+Thumbs.db
+*.log
