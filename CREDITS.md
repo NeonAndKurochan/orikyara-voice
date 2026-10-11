@@ -29,6 +29,12 @@
 - **ReazonSpeech k2 v2**（Reazon Holdings）：https://huggingface.co/reazon-research/reazonspeech-k2-v2（Apache-2.0）
 - 特徴量の計算（`core/Fbank`）と transducer の greedy search（`core/ReazonAsr`）は、**sherpa-onnx** と **kaldi-native-fbank**（k2-fsa、Apache-2.0）の処理に合わせて書き、出力が一致することを確かめています（`tools/asr_ref.py`）
 
+## 同梱しているもの
+
+- `web/vendor/three.module.js`、`GLTFLoader.js`、`BufferGeometryUtils.js`：three.js（MIT、`THREE-LICENSE.txt`）
+- `web/vendor/three-vrm.module.js`、`three-vrm-animation.module.js`：pixiv Inc.（MIT、同じフォルダーのライセンスファイル）
+- それ以外のコードは、このリポジトリの `LICENSE`（MIT）
+
 ## 実行と変換に使っているもの
 
 | 名前 | 用途 | ライセンス |

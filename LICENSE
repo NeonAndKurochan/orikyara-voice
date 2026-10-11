@@ -19,10 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
----
-
-Third-party code included in this repository keeps its own license:
-web/vendor/three.module.js, GLTFLoader.js, BufferGeometryUtils.js (three.js, MIT, see THREE-LICENSE.txt),
-web/vendor/three-vrm.module.js, three-vrm-animation.module.js (pixiv Inc., MIT, see the LICENSE files there).
-Models used at run time are not included; see CREDITS.md for the projects this work builds on and their licenses.
