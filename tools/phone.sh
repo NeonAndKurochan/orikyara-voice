@@ -7,6 +7,8 @@
 #   tools/phone.sh pull <file> <dest>     copy a file from the app's external files dir
 #   tools/phone.sh push <file>            put a file into the app's model pack (files/pack)
 #   tools/phone.sh pushchar <dir>         a character folder into files/chars/<dir name> (see chars/template)
+#   tools/phone.sh pushflat <dir> [id]    2D parts (rig.json, layers_flat.json, PNGs; tools/flat_bake.py) into
+#                                         files/pack/flat, or files/chars/<id>/flat; replaces what was there
 export MSYS_NO_PATHCONV=1
 ADB="C:/Program Files/Unity 6000.3.24f1/Editor/Data/PlaybackEngines/AndroidPlayer/SDK/platform-tools/adb.exe"
 PKG=local.fereko.probe
@@ -46,5 +48,18 @@ case "$1" in
       "$ADB" shell run-as $PKG cp /data/local/tmp/"$name" files/chars/"$id"/"$name" && "$ADB" shell rm /data/local/tmp/"$name" &&
       echo "  $id/$name"
     done ;;
+  pushflat)
+    dest=files/pack/flat
+    [ -n "$3" ] && dest=files/chars/"$3"/flat
+    "$ADB" shell run-as $PKG rm -rf "$dest" && "$ADB" shell run-as $PKG mkdir -p "$dest"
+    n=0
+    for f in "$2"/*.png "$2"/*.json; do
+      [ -f "$f" ] || continue
+      name=$(basename "$f")
+      "$ADB" push "$f" /data/local/tmp/"$name" > /dev/null && "$ADB" shell chmod 644 /data/local/tmp/"$name" &&
+      "$ADB" shell run-as $PKG cp /data/local/tmp/"$name" "$dest"/"$name" && "$ADB" shell rm /data/local/tmp/"$name" &&
+      n=$((n + 1))
+    done
+    echo "$n files -> $dest" ;;
   *) "$ADB" "$@" ;;
 esac

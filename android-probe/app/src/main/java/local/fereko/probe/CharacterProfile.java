@@ -23,6 +23,8 @@ import local.fereko.probe.core.MiniJson;
  *   persona.md      the system prompt (same structure as chat/persona.md, incl. the 好感度 rules)
  *   speaker.f32 + speaker.json   registered voice (optional; without it the caption alone sets the voice)
  *   *.vrm, *.vrma   3D model and motions (optional)
+ *   flat/rig.json + layers   the picture as 2D parts, moved by the same motions (optional, needs the VRM;
+ *                   made with tools/flat_bake.py)
  *   stand.png|webp  still picture (optional; also the fallback while Live2D isn't supported)
  * Each character has its own history, memo, archive, affection and greeting time; app-wide
  * settings (Claude model, recognizer, decoder, tempo, background…) are shared.
@@ -106,6 +108,9 @@ final class CharacterProfile {
 
     /** Folder with speaker.f32 (registered voice): the pack for ふぇれ子. */
     File voiceDir(File pack) { return builtin() ? pack : dir; }
+
+    /** The 2D rig (picture layers moved by the same motions), or null: modelDir/flat/rig.json. */
+    File flatRig(File pack) { return AvatarView.findFlatRig(modelDir(pack)); }
 
     /** Folder the 3D page reads the model and motions from. */
     File modelDir(File pack) { return builtin() ? pack : dir; }

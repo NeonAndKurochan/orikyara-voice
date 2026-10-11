@@ -24,13 +24,19 @@
 // Face: emotion = <emo> (brows) + <emo>_lids × (1 − blink) + <emo>_mouth × (k while speaking, else 1),
 // natural blink combined with timed cues (giggle_hide, yawn), vowels from the voice level and the kana
 // of the sentence, gaze up-left while thinking. Missing expressions are skipped.
+//
+// 2D (?flat=<rig.json>): the same motion runs on the (undrawn) VRM's normalized bones and flat.mjs draws
+// the picture layers from that pose instead. The face is not drawn in 2D yet.
 import * as THREE from 'three';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { VRMLoaderPlugin } from './vendor/three-vrm.module.js';
 import { VRMAnimationLoaderPlugin, createVRMAnimationClip } from './vendor/three-vrm-animation.module.js';
+import { createFlat } from './flat.mjs';
 
 const params = new URLSearchParams(location.search);
 const VRM_URL = params.get('vrm');
+// ?flat=<rig.json>: show the flat (2D) picture instead of the model; the VRM still runs the motions
+const FLAT_URL = params.get('flat');
 const PIXEL_SCALE = parseFloat(params.get('scale') || '0.75');   // of devicePixelRatio
 const FPS_CAP = 60;
 // framing: ears to knees between these fractions of the view height (the same as the 2D picture)
@@ -56,6 +62,7 @@ scene.add(sun);
 const camera = new THREE.PerspectiveCamera(24, innerWidth / innerHeight, 0.05, 20);
 
 let vrm = null, span = null;   // span: {top, bottom} world y of ears and knees
+let flat = null;
 
 function frame() {
   if (!span) return;
@@ -74,7 +81,9 @@ function frame() {
 addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
   frame();
+  if (flat) flat.frame(innerWidth / innerHeight, VIEW_TOP, VIEW_BOTTOM);
 });
+const draw = () => (flat ? renderer.render(flat.scene, flat.camera) : renderer.render(scene, camera));
 
 const bone = (name) => vrm && vrm.humanoid.getNormalizedBoneNode(name);
 const setRot = (name, x, y, z) => { const b = bone(name); if (b) b.rotation.set(x, y, z); };
@@ -89,7 +98,7 @@ async function load() {
   const gltf = await loader.loadAsync(VRM_URL);
   vrm = gltf.userData.vrm;
   if (!vrm) throw new Error('VRM not found in file');
-  scene.add(vrm.scene);
+  if (!FLAT_URL) scene.add(vrm.scene);
   vrm.scene.rotation.y = 0;   // VRM 1.0 faces +Z, towards the camera
   if (vrm.lookAt) vrm.lookAt.autoUpdate = false;   // the gaze expressions are set here (no double application)
   const nroot = vrm.humanoid.normalizedHumanBonesRoot;
@@ -101,6 +110,12 @@ async function load() {
   vrm.update(0);
   vrm.scene.updateMatrixWorld(true);
   vrm.springBoneManager?.reset();
+  if (FLAT_URL) {
+    const f = await createFlat(FLAT_URL);
+    f.setReference(flatLocal, bone('hips').position, bone('hips').position.y);
+    f.frame(innerWidth / innerHeight, VIEW_TOP, VIEW_BOTTOM);
+    flat = f;
+  }
 
   // framing from the model itself: top of the ears, and the knees
   const box = new THREE.Box3().setFromObject(vrm.scene);
@@ -131,12 +146,15 @@ async function load() {
     lookAtType: json.extensions?.VRMC_vrm?.lookAt?.type || null,
     springJoints: vrm.springBoneManager ? vrm.springBoneManager.joints.size : 0,
     span: { top: +span.top.toFixed(3), bottom: +span.bottom.toFixed(3) },
+    flat: !!flat,
     three: THREE.REVISION,
     gpu: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : null,
     ua: navigator.userAgent,
     pixelRatio: renderer.getPixelRatio(), canvas: [renderer.domElement.width, renderer.domElement.height],
   });
 }
+
+const flatLocal = (name) => { const b = bone(name); return b ? b.quaternion : null; };
 
 function poseRest() {
   // T pose -> arms down along the body, elbows slightly bent (models without VRMA loops)
@@ -294,7 +312,7 @@ function startReaction(name) {
   const clip = clips[name];
   if (!clip || !vrm) return false;
   if (FULL_BODY.has(name)) {
-    if (full) return false;   // a repeated request doesn't restart it
+    if (full || flat) return false;   // a repeated request doesn't restart it; a flat picture can't turn around
     full = { name, clip, t: 0 };
   } else {
     if (full || (reaction && reaction.name === name)) return false;
@@ -528,7 +546,8 @@ function step(dt, appState, level) {
   if (full) writeClip(full.clip, full.t, clamp01(Math.min(full.t / 0.3, (full.clip.duration - full.t) / 0.3)), null);
   if (base.cur) applyLife(dt);
   updateFace(dt, state, level);
-  vrm.update(dt);
+  if (flat) flat.update(flatLocal, bone('hips').position, dt);   // the 3D model itself is not drawn
+  else vrm.update(dt);
 }
 
 renderer.domElement.addEventListener('pointerup', () => startReaction('turn_around'));
@@ -578,7 +597,7 @@ function loop(now) {
     step(dt, state, level);
     if (state === 'talk') stats.talk++;
   }
-  renderer.render(scene, camera);
+  draw();
   stats.frames++;
   stats.intervals.push(dtMs);
   if (now - stats.since > 10000) report(now);
@@ -587,7 +606,7 @@ function loop(now) {
 // for tests: advance the animation by hand (a hidden browser tab doesn't run requestAnimationFrame)
 window.avatarStep = (seconds, state = 'idle', level = 0, fps = 30) => {
   for (let i = 0; i < Math.round(seconds * fps); i++) step(1 / fps, state, level);
-  renderer.render(scene, camera);
+  draw();
   return window.avatarDebug();
 };
 

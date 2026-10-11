@@ -23,6 +23,8 @@ import java.util.function.Supplier;
  * answered by the app: https://fereko.local/web/... from the APK's assets, /pack/... (the VRM, which
  * is the author's own and is not shipped in the APK) from the model folder; anything else is refused,
  * so the page never touches the network.
+ * With a flat rig (the model folder's flat/rig.json and picture layers) the page draws the 2D picture,
+ * moved by the same motions, instead of the 3D model.
  */
 @SuppressLint("ViewConstructor")
 final class AvatarView extends WebView {
@@ -41,7 +43,15 @@ final class AvatarView extends WebView {
     /** Called (on a WebView thread) when a VRMA reaction starts: its name and length in seconds. */
     interface MotionListener { void started(String name, double seconds); }
 
-    AvatarView(Context c, File pack, File vrm, Supplier<String> state, DoubleSupplier level, Consumer<String> log,
+    /** The model folder's 2D rig (flat/rig.json), or null. */
+    static File findFlatRig(File pack) {
+        File f = new File(new File(pack, FLAT_DIR), "rig.json");
+        return f.isFile() ? f : null;
+    }
+
+    static final String FLAT_DIR = "flat";
+
+    AvatarView(Context c, File pack, File vrm, boolean flat, Supplier<String> state, DoubleSupplier level, Consumer<String> log,
                MotionListener motion) {
         super(c);
         setBackgroundColor(Color.TRANSPARENT);
@@ -77,8 +87,11 @@ final class AvatarView extends WebView {
                         in = getContext().getAssets().open(path.substring(1));
                     } else if (path.startsWith("/pack/")) {
                         File f = new File(pack, path.substring(6));
-                        if (!f.getParentFile().equals(pack) || !(f.getName().endsWith(".vrm") || f.getName().endsWith(".vrma")
-                                || f.getName().endsWith(".json"))) return refuse();
+                        File dir = f.getParentFile();
+                        String n = f.getName();
+                        boolean inPack = dir.equals(pack) && (n.endsWith(".vrm") || n.endsWith(".vrma") || n.endsWith(".json"));
+                        boolean inFlat = dir.equals(new File(pack, FLAT_DIR)) && (n.endsWith(".png") || n.endsWith(".json"));
+                        if (!inPack && !inFlat) return refuse();
                         in = new FileInputStream(f);
                     } else {
                         return refuse();
@@ -89,7 +102,8 @@ final class AvatarView extends WebView {
                 }
             }
         });
-        loadUrl("https://" + HOST + "/web/avatar.html?vrm=" + android.net.Uri.encode("/pack/" + vrm.getName()));
+        loadUrl("https://" + HOST + "/web/avatar.html?vrm=" + android.net.Uri.encode("/pack/" + vrm.getName())
+                + (flat ? "&flat=" + android.net.Uri.encode("/pack/" + FLAT_DIR + "/rig.json") : ""));
     }
 
     /** A sentence starts playing: {"emotion": "😏", "actions": ["うなずく"], "text": "…", "first": true}. */
@@ -112,6 +126,7 @@ final class AvatarView extends WebView {
         if (path.endsWith(".js") || path.endsWith(".mjs")) return "text/javascript";
         if (path.endsWith(".json")) return "application/json";
         if (path.endsWith(".txt")) return "text/plain";
+        if (path.endsWith(".png")) return "image/png";
         return "application/octet-stream";   // .vrm / .vrma (glTF binary)
     }
 }

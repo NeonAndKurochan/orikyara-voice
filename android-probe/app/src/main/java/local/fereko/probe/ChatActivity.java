@@ -334,9 +334,11 @@ public class ChatActivity extends Activity {
         // 2. ふぇれ子
         java.io.File vrm = chr.vrm(packDir());
         android.graphics.Bitmap stand = chr.stand(this);
-        if (vrm != null && prefs.getBoolean("avatar3d", true)) {
-            // 3D: transparent WebView over the background; the 2D picture is not drawn
-            avatar = new AvatarView(this, chr.modelDir(packDir()), vrm, () -> avatarState, () -> {
+        boolean want3d = prefs.getBoolean("avatar3d", true);
+        boolean flat = !want3d && chr.flatRig(packDir()) != null;
+        if (vrm != null && (want3d || flat)) {
+            // 3D, or 2D parts moved by the same motions: transparent WebView over the background
+            avatar = new AvatarView(this, chr.modelDir(packDir()), vrm, flat, () -> avatarState, () -> {
                 TtsPipeline t = activeTts;
                 return t == null ? 0 : t.level();
             }, json -> {
