@@ -26,7 +26,8 @@
 // of the sentence, gaze up-left while thinking. Missing expressions are skipped.
 //
 // 2D (?flat=<rig.json>): the same motion runs on the (undrawn) VRM's normalized bones and flat.mjs draws
-// the picture layers from that pose instead. The face is not drawn in 2D yet.
+// the picture layers from that pose instead, and the face values (blink, vowels, emotion) drive its eyes,
+// mouth and blush.
 import * as THREE from 'three';
 import { GLTFLoader } from './vendor/GLTFLoader.js';
 import { VRMLoaderPlugin } from './vendor/three-vrm.module.js';
@@ -365,7 +366,8 @@ const BLINK_CUES = { giggle_hide: { closeStart: 1.92, closedAt: 2.08, openStart:
 BLINK_CUES.yawn = BLINK_CUES.giggle_hide;
 
 const face = { emotion: null, weights: {}, idleSince: 0, nextBlink: 2, blinkT: -1, vowels: [], cueAt: 0,
-  mouth: { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 }, gaze: 0, voice: 0 };
+  mouth: { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 }, gaze: 0, voice: 0,
+  blink: 0, vowelOut: { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 } };   // what was set this frame (read by the 2D picture)
 
 const smoothstep = (a, b, x) => { const u = clamp01((x - a) / (b - a)); return u * u * (3 - 2 * u); };
 function blinkCue(cue, t) {
@@ -458,6 +460,7 @@ function updateFace(dt, state, level) {
     setExpr(e + '_mouth', w * (speaking ? MOUTH_K : 1));
   }
   setExpr('blink', b);
+  face.blink = b;
 
   // mouth: openness from the voice, vowel from the sentence's kana at the estimated position
   face.voice += (clamp01(level / 0.08) - face.voice) * (level > 0 ? 0.6 : 0.3);
@@ -475,7 +478,10 @@ function updateFace(dt, state, level) {
     sum += face.mouth[v];
   }
   const scale = sum > 1 ? 1 / sum : 1;   // the vowels never add up to more than 1
-  for (const v of V5) setExpr(v, face.mouth[v] * scale + (v === 'aa' ? yawnOpen : 0));
+  for (const v of V5) {
+    face.vowelOut[v] = face.mouth[v] * scale + (v === 'aa' ? yawnOpen : 0);
+    setExpr(v, face.vowelOut[v]);
+  }
 
   // gaze: up and to the side while thinking
   face.gaze += ((state === 'think' ? 1 : 0) - face.gaze) * Math.min(1, dt / 0.3);
@@ -546,7 +552,7 @@ function step(dt, appState, level) {
   if (full) writeClip(full.clip, full.t, clamp01(Math.min(full.t / 0.3, (full.clip.duration - full.t) / 0.3)), null);
   if (base.cur) applyLife(dt);
   updateFace(dt, state, level);
-  if (flat) flat.update(flatLocal, bone('hips').position, dt);   // the 3D model itself is not drawn
+  if (flat) flat.update(flatLocal, bone('hips').position, dt, face);   // the 3D model itself is not drawn
   else vrm.update(dt);
 }
 

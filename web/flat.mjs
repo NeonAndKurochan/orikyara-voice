@@ -8,7 +8,12 @@
 // angle turns the 2D bone. A segment that points at the viewer has no reliable angle and follows its parent.
 // Head yaw/pitch slides the face parts a little (and the back hair the other way).
 //
-// rig.json: {"layers": "layers_flat.json", "joints": {"pelvis": [x, y], ...}, "layerBones": [[regex, [bones]], ...],
+// Face, without extra pictures: each eye (eyewhite/irides/eyelash-l|r layers) sits on its own bone that
+// squashes from the lower lid for blinks and half-closed lids (the squashed upper lashes read as a closed
+// eye); the mouth opens as a small dark shape at joints.mouth, sized by vowel and voice; shy/happy add a
+// blush. The values come from avatar.mjs (face.blink, face.vowelOut, face.weights).
+//
+// rig.json: {"layers": "layers_flat.json", "joints": {"pelvis": [x, y], ..., "mouth": [x, y]}, "layerBones": [[regex, [bones]], ...],
 //            "sigma": px, "cell": px, "facePx": px}
 // layers_flat.json: [{"name", "filename", "left", "top"}, ...] bottom to top.
 import * as THREE from 'three';
@@ -56,6 +61,8 @@ export async function createFlat(rigUrl) {
   const base = rigUrl.slice(0, rigUrl.lastIndexOf('/') + 1);
   const layers = await (await fetch(base + rig.layers)).json();
   const J = rig.joints;
+  const loader = new THREE.TextureLoader();
+  const textures = await Promise.all(layers.map((L) => loader.loadAsync(base + encodeURIComponent(L.filename))));
 
   const bones = {}, info = {};
   const root = new THREE.Group();
@@ -71,21 +78,39 @@ export async function createFlat(rigUrl) {
     info[name] = { parent, hum, from: p, to: P(J[to]), d0, rest: Math.atan2(d0.y, d0.x), angle: 0 };
   }
   for (const n of ['face', 'back']) { const b = new THREE.Bone(); b.name = n; bones.head.add(b); bones[n] = b; }
+  // eyes: a bone at each lower lid, under the face bone
+  const eyes = {};
+  layers.forEach((L, i) => {
+    const m = L.name.match(/^eyewhite-([lr])$/);
+    if (!m) return;
+    const w = textures[i].image.width, h = textures[i].image.height;
+    eyes[m[1]] = { x: L.left + w / 2, y: L.top + h * 0.85, w, h };
+  });
+  // the eyes' tilt in the picture (a tilted head): lids close across it, not straight down
+  const tilt = eyes.l && eyes.r ? Math.atan2(-(eyes.l.y - eyes.r.y), eyes.l.x - eyes.r.x) : 0;
+  for (const [side, e] of Object.entries(eyes)) {
+    const b = new THREE.Bone();
+    b.name = 'eye' + side;
+    b.position.copy(P([e.x, e.y])).sub(P(J.head));
+    b.rotation.z = tilt;
+    bones.face.add(b);
+    bones['eye' + side] = b;
+  }
   const boneList = Object.values(bones);
   root.updateMatrixWorld(true);
   const skeleton = new THREE.Skeleton(boneList);
 
   const scene = new THREE.Scene();
   scene.add(root);
-  const loader = new THREE.TextureLoader();
   const SIGMA = rig.sigma || 30, CELL = rig.cell || 10;
   const layerBones = (name) => {
     name = name.replace(/__back$/, '');   // a part's cut-away back piece moves with the part
+    const eye = name.match(/^(eyewhite|irides|eyelash)-([lr])$/);
+    if (eye && bones['eye' + eye[2]]) return ['eye' + eye[2]];
     for (const [re, bs] of rig.layerBones) if (new RegExp(re).test(name)) return bs.filter((n) => bones[n]);
     return ['hips', 'spine', 'chest'].filter((n) => bones[n]);
   };
   let top = Infinity;
-  const textures = await Promise.all(layers.map((L) => loader.loadAsync(base + encodeURIComponent(L.filename))));
   layers.forEach((L, order) => {
     const tex = textures[order];
     tex.colorSpace = THREE.SRGBColorSpace;
@@ -118,6 +143,58 @@ export async function createFlat(rigUrl) {
     scene.add(m);
   });
 
+  // mouth: a small dark opening (and a lighter inside) on the face bone; cheeks: a soft blush
+  let mouth = null;
+  if (J.mouth) {
+    mouth = new THREE.Group();
+    mouth.position.copy(P(J.mouth)).sub(P(J.head));
+    const outer = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({ color: 0x4a1c22, transparent: true, depthTest: false }));
+    const inner = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshBasicMaterial({ color: 0xa8505c, transparent: true, depthTest: false }));
+    inner.position.set(0, -0.45, 0); inner.scale.set(0.6, 0.45, 1);
+    outer.renderOrder = 10000; inner.renderOrder = 10001;
+    mouth.add(outer); outer.add(inner);
+    mouth.userData.outer = outer;
+    mouth.visible = false;
+    bones.face.add(mouth);
+  }
+  const blushTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,105,125,0.9)'); gr.addColorStop(1, 'rgba(255,105,125,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const blush = Object.entries(eyes).map(([side, e]) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: blushTex, transparent: true, depthTest: false, opacity: 0 }));
+    const out = side === 'l' ? 1 : -1;   // character's left = picture right
+    m.position.copy(P([e.x - out * e.w * 0.12, e.y + e.h * 0.75])).sub(P(J.head));
+    m.rotation.z = tilt;
+    m.scale.set(e.w * 1.1, e.w * 0.5, 1);
+    m.renderOrder = 9990;
+    bones.face.add(m);
+    return m;
+  });
+  // closed eyes: a lash line along the lower lid, faded in as the lids close
+  const lashTex = (mirror) => {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 32;
+    const g = c.getContext('2d');
+    if (mirror) { g.translate(128, 0); g.scale(-1, 1); }
+    g.strokeStyle = '#3a2228'; g.lineCap = 'round'; g.lineWidth = 3.5;
+    g.beginPath(); g.moveTo(8, 9); g.quadraticCurveTo(62, 25, 118, 11); g.stroke();
+    g.lineWidth = 2.5; g.beginPath(); g.moveTo(112, 12); g.lineTo(124, 6); g.stroke();   // outer corner
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  };
+  const lashes = Object.entries(eyes).map(([side, e]) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({ map: lashTex(side === 'r'), transparent: true, depthTest: false, opacity: 0 }));
+    m.position.copy(P([e.x, e.y - e.h * 0.12])).sub(P(J.head));
+    m.rotation.z = tilt;
+    m.scale.set(e.w * 1.1, e.w * 1.1 / 4, 1);
+    m.renderOrder = 9995;
+    bones.face.add(m);
+    return m;
+  });
+
   // framing: top of the picture to the knees, like the 3D view (ears to knees)
   const knees = ['lKnee', 'rKnee'].filter((k) => J[k]).map((k) => J[k][1]);
   const span = { top, bottom: knees.length ? knees.reduce((a, b) => a + b) / knees.length : top + 800,
@@ -144,6 +221,42 @@ export async function createFlat(rigUrl) {
   const pxPerM = { v: 0 };
   const FACE_PX = rig.facePx ?? 10;
   let t = 0;
+  // emotion -> how far the lids come down, extra eye opening, blush
+  const LIDS = { jito: 0.45, sigh: 0.35, smug: 0.3, sleepy: 0.6, giggle: 0.5, happy: 0.3, angry: 0.25, sad: 0.2, relaxed: 0.3, shy: 0.2, pout: 0.15 };
+  const BLUSH = { shy: 1, happy: 0.4, giggle: 0.5, pout: 0.3 };
+  // mouth shape per vowel: half width, half height at full opening (picture px)
+  const VOWELS = { aa: [4.5, 3.6], ih: [5, 1.6], ou: [2.6, 2.4], ee: [5, 2.2], oh: [3.5, 3.2] };
+  function updateFace(face) {
+    if (!face) return;
+    const W = face.weights || {};
+    let lids = 0, wide = 0, bl = 0;
+    for (const [e, w] of Object.entries(W)) {
+      lids = Math.max(lids, (LIDS[e] || 0) * w);
+      bl = Math.max(bl, (BLUSH[e] || 0) * w);
+    }
+    wide = W.surprised || 0;
+    const close = 1 - (1 - (face.blink || 0)) * (1 - lids);
+    for (const side of ['l', 'r']) {
+      const b = bones['eye' + side];
+      if (!b) continue;
+      b.scale.set(1 + 0.04 * wide, Math.max(0.06, (1 - close) * (1 + 0.12 * wide)), 1);
+    }
+    for (const m of blush) m.material.opacity = 0.55 * bl;
+    for (const m of lashes) m.material.opacity = THREE.MathUtils.smoothstep(close, 0.55, 0.85);
+    if (mouth) {
+      let hw = 0, hh = 0, sum = 0;
+      for (const [v, [w, h]] of Object.entries(VOWELS)) {
+        const k = (face.vowelOut && face.vowelOut[v]) || 0;
+        hw += w * k; hh += h * k; sum += k;
+      }
+      if (W.surprised) { hw = Math.max(hw, 2.2 * W.surprised); hh = Math.max(hh, 2.2 * W.surprised); sum = Math.max(sum, W.surprised); }
+      mouth.visible = sum > 0.05;
+      if (mouth.visible) {
+        const k = Math.min(1, sum);
+        mouth.userData.outer.scale.set(Math.max(2.5, hw / Math.max(sum, 1e-3)), Math.max(0.6, hh / Math.max(sum, 1e-3) * k), 1);
+      }
+    }
+  }
 
   return {
     scene, camera, frame,
@@ -154,8 +267,9 @@ export async function createFlat(rigUrl) {
       const legPx = (J.lAnkle && J.pelvis) ? J.lAnkle[1] - J.pelvis[1] : 500;
       pxPerM.v = legPx / (hipsRestY || 0.9);
     },
-    update(local, hips, dt) {
+    update(local, hips, dt, face) {
       if (!ref) return;
+      updateFace(face);
       t += dt;
       const wp = world(local);
       for (const [name, f] of Object.entries(info)) {

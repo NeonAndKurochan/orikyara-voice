@@ -47,7 +47,7 @@ import local.fereko.probe.core.SelfTest;
  */
 public class MainActivity extends Activity {
     private static final int REQ_TREE = 1;
-    static final String APP_VERSION = "0.18.4";
+    static final String APP_VERSION = "0.19.1";
     private static final String ORT_VERSION = "1.30.0 + QNN plugin 2.6.0";
     private static final String DEFAULT_TEXT = "こんにちは。今日はいい天気ですね。";
     /** Extra lead time before playback starts, so estimate errors don't run the buffer dry. */
